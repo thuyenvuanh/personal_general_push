@@ -1,0 +1,22 @@
+{
+  "name": "personal-push",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@upstash/redis": "^1.34.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/web-push": "^3.6.3",
+    "@vercel/node": "^5.8.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.0.0"
+  }
+}

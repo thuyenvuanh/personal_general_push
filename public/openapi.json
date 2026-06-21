@@ -1,0 +1,268 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Personal Push",
+    "description": "Send push notifications to subscribed iPhone devices. Devices must be registered via the PWA and approved in /admin before they receive pushes.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "https://your-deployment.vercel.app", "description": "Production" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API_SECRET_KEY set in Vercel environment variables"
+      }
+    },
+    "schemas": {
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "label":       { "type": "string", "example": "My iPhone" },
+          "status":      { "type": "string", "enum": ["pending", "approved", "rejected"] },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "lastSeenAt":  { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "label", "status", "createdAt", "lastSeenAt"]
+      },
+      "NotifyRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title":  { "type": "string", "example": "Backup complete" },
+          "body":   { "type": "string", "example": "Nightly backup finished OK" },
+          "icon":   { "type": "string", "example": "/icons/icon.svg" },
+          "url":    { "type": "string", "format": "uri", "example": "https://example.com/backups" },
+          "target": {
+            "type": "string",
+            "default": "all",
+            "description": "\"all\" to send to every approved device, or a device label to target one device"
+          }
+        }
+      },
+      "NotifyResult": {
+        "type": "object",
+        "properties": {
+          "sent":   { "type": "integer", "description": "Number of notifications successfully delivered" },
+          "failed": { "type": "integer", "description": "Number of delivery failures (stale endpoints are auto-deleted)" }
+        },
+        "required": ["sent", "failed"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        },
+        "required": ["error"]
+      }
+    }
+  },
+  "security": [],
+  "paths": {
+    "/api/notify": {
+      "post": {
+        "summary": "Send a push notification",
+        "description": "Sends a Web Push notification to all approved devices (or a specific device by label). Pending and rejected devices are silently skipped. Stale endpoints (HTTP 404/410 from the push service) are automatically removed.",
+        "operationId": "sendNotification",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NotifyRequest" },
+              "examples": {
+                "broadcast": {
+                  "summary": "Send to all devices",
+                  "value": { "title": "Backup complete", "body": "Nightly backup finished OK", "target": "all" }
+                },
+                "targeted": {
+                  "summary": "Send to one device",
+                  "value": { "title": "Alert", "body": "CPU usage over 90%", "target": "My iPhone", "url": "https://example.com/metrics" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification dispatched (check sent/failed counts)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotifyResult" } } }
+          },
+          "400": { "description": "Missing title", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "405": { "description": "Method not allowed" }
+        }
+      }
+    },
+    "/api/subscribe": {
+      "post": {
+        "summary": "Register a push subscription",
+        "description": "Called by the PWA after the user grants notification permission. New endpoints are created as 'pending'. Existing approved endpoints just update lastSeenAt. Rejected endpoints stay rejected (sticky).",
+        "operationId": "subscribe",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["endpoint", "keys", "label"],
+                "properties": {
+                  "endpoint": { "type": "string", "format": "uri" },
+                  "keys": {
+                    "type": "object",
+                    "required": ["p256dh", "auth"],
+                    "properties": {
+                      "p256dh": { "type": "string" },
+                      "auth":   { "type": "string" }
+                    }
+                  },
+                  "label":  { "type": "string", "example": "My iPhone" },
+                  "topics": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription upserted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id":     { "type": "string", "format": "uuid" },
+                    "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing required fields" }
+        }
+      },
+      "delete": {
+        "summary": "Remove a push subscription",
+        "description": "Called by the PWA when the user unsubscribes.",
+        "operationId": "unsubscribe",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["endpoint"],
+                "properties": {
+                  "endpoint": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Subscription removed" },
+          "400": { "description": "Missing endpoint" }
+        }
+      }
+    },
+    "/api/subscribe/status": {
+      "get": {
+        "summary": "Check subscription approval status",
+        "description": "Returns the approval status for a given push endpoint. Used by the PWA to poll for admin approval.",
+        "operationId": "getSubscriptionStatus",
+        "parameters": [
+          {
+            "name": "endpoint",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "uri" },
+            "description": "The push endpoint URL from PushSubscription.endpoint"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status for this endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "enum": ["pending", "approved", "rejected"] } }
+                }
+              }
+            }
+          },
+          "404": { "description": "Endpoint not found" }
+        }
+      }
+    },
+    "/api/admin/devices": {
+      "get": {
+        "summary": "List all registered devices",
+        "description": "Returns all devices regardless of status. Use the status field to filter.",
+        "operationId": "listDevices",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Array of devices",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/admin/devices/{id}/approve": {
+      "post": {
+        "summary": "Approve a device",
+        "description": "Sets the device status to 'approved', allowing it to receive notifications.",
+        "operationId": "approveDevice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Device approved" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Device not found" }
+        }
+      }
+    },
+    "/api/admin/devices/{id}/reject": {
+      "post": {
+        "summary": "Reject a device",
+        "description": "Sets the device status to 'rejected'. The device will not receive any notifications.",
+        "operationId": "rejectDevice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Device rejected" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Device not found" }
+        }
+      }
+    },
+    "/api/admin/devices/{id}": {
+      "delete": {
+        "summary": "Delete a device",
+        "description": "Permanently removes the device record. A rejected device that is deleted can re-register as 'pending' on next subscribe.",
+        "operationId": "deleteDevice",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Device deleted" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  }
+}

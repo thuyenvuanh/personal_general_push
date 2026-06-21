@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Push</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <meta name="theme-color" content="#18181b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Personal Push">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100vh; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #f4f4f5;
+      color: #09090b;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input, textarea { font-family: inherit; }
+
+    .page {
+      max-width: 400px;
+      margin: 0 auto;
+      padding: 56px 28px 48px;
+      min-height: 100vh;
+    }
+
+    .heading { display: flex; flex-direction: column; gap: 6px; margin-bottom: 36px; }
+    .heading h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: #09090b; margin: 0; }
+    .heading p { font-size: 14px; line-height: 1.5; color: #71717a; margin: 0; }
+
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .field label { font-size: 14px; font-weight: 500; color: #18181b; }
+    .field input {
+      height: 40px; width: 100%;
+      border: 1px solid #e4e4e7; border-radius: 6px;
+      padding: 0 12px; font-size: 15px;
+      background: #fff; color: #18181b; outline: none;
+    }
+    .field input:focus { border-color: #18181b; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 100%; height: 40px; padding: 0 16px;
+      border-radius: 6px; font-size: 15px; font-weight: 500;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: #18181b; color: #fafafa; border-color: #18181b; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #fff; color: #18181b; border-color: #e4e4e7; }
+
+    .device-card {
+      border: 1px solid #e4e4e7; border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+      padding: 20px; display: flex; flex-direction: column; gap: 14px;
+      margin-bottom: 24px; background: #fff;
+    }
+    .device-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .device-name { font-size: 15px; font-weight: 500; color: #18181b; }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      border-radius: 6px; border: 1px solid transparent;
+      padding: 2px 10px; font-size: 12px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-pending { background: #f4f4f5; color: #3f3f46; }
+    .badge-approved { background: #18181b; color: #fafafa; }
+    .badge-rejected { background: #ef4444; color: #fff; }
+
+    .device-desc { font-size: 13px; line-height: 1.5; color: #71717a; }
+
+    .divider { height: 1px; background: #e4e4e7; margin: 28px 0 18px; }
+
+    .test-section { display: flex; flex-direction: column; gap: 12px; }
+    .test-toggle {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 500; color: #71717a;
+      background: none; border: none; padding: 0; cursor: pointer; width: auto;
+    }
+    .test-toggle-arrow { font-size: 10px; display: inline-block; transition: transform 0.15s; }
+    .test-toggle-arrow.open { transform: rotate(-90deg); }
+    .test-fields { display: none; flex-direction: column; gap: 8px; }
+    .test-fields.open { display: flex; }
+    .test-input {
+      height: 36px; width: 100%;
+      border: 1px solid #e4e4e7; border-radius: 6px;
+      padding: 0 12px; font-size: 13px;
+      background: #fff; color: #18181b; outline: none;
+    }
+    .test-textarea {
+      width: 100%; border: 1px solid #e4e4e7; border-radius: 6px;
+      padding: 8px 12px; font-size: 13px;
+      background: #fff; color: #18181b; resize: none; outline: none;
+    }
+    .btn-sm {
+      display: inline-flex; align-items: center; justify-content: center;
+      align-self: flex-start; height: 32px; padding: 0 12px;
+      border-radius: 6px; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: 1px solid transparent;
+    }
+    .btn-sm-muted { background: #f4f4f5; color: #18181b; }
+
+    .error-msg { font-size: 13px; color: #ef4444; margin-top: 8px; }
+    .success-msg { font-size: 13px; color: #16a34a; margin-top: 8px; }
+
+    /* State visibility */
+    .page > [data-state] { display: none; }
+    body[data-state="unsubscribed"] .page > [data-state="unsubscribed"],
+    body[data-state="pending"]      .page > [data-state="pending"],
+    body[data-state="approved"]     .page > [data-state="approved"],
+    body[data-state="rejected"]     .page > [data-state="rejected"],
+    body[data-state="loading"]      .page > [data-state="loading"] { display: block; }
+  </style>
+</head>
+<body data-state="loading">
+<main class="page">
+
+  <!-- Loading -->
+  <div data-state="loading">
+    <div class="heading">
+      <h1>Personal Push</h1>
+      <p>Loading…</p>
+    </div>
+  </div>
+
+  <!-- Unsubscribed -->
+  <div data-state="unsubscribed">
+    <div class="heading">
+      <h1>Personal Push</h1>
+      <p>Receive push notifications from your own scripts on this device.</p>
+    </div>
+    <div class="field">
+      <label for="device-label">Device label</label>
+      <input id="device-label" type="text" placeholder="My iPhone">
+    </div>
+    <button class="btn btn-primary" id="btn-enable">Enable Notifications</button>
+    <div class="error-msg" id="enable-error" style="display:none;"></div>
+  </div>
+
+  <!-- Pending -->
+  <div data-state="pending">
+    <div class="heading">
+      <h1>Personal Push</h1>
+      <p>This device is subscribed.</p>
+    </div>
+    <div class="device-card">
+      <div class="device-card-header">
+        <span class="device-name" id="pending-label"></span>
+        <span class="badge badge-pending">Pending review</span>
+      </div>
+      <div class="device-desc">Waiting for approval — check back later.</div>
+    </div>
+    <button class="btn btn-secondary" id="btn-unsubscribe-pending">Unsubscribe</button>
+  </div>
+
+  <!-- Approved -->
+  <div data-state="approved">
+    <div class="heading">
+      <h1>Personal Push</h1>
+      <p>This device is subscribed.</p>
+    </div>
+    <div class="device-card">
+      <div class="device-card-header">
+        <span class="device-name" id="approved-label"></span>
+        <span class="badge badge-approved">Approved</span>
+      </div>
+      <div class="device-desc">You'll receive notifications on this device.</div>
+    </div>
+    <button class="btn btn-secondary" id="btn-unsubscribe-approved">Unsubscribe</button>
+
+    <div class="divider"></div>
+    <div class="test-section">
+      <button class="test-toggle" id="test-toggle">
+        <span class="test-toggle-arrow" id="test-arrow">▾</span>
+        Send test notification
+      </button>
+      <div class="test-fields" id="test-fields">
+        <input class="test-input" id="test-api-key" type="password" placeholder="API key" autocomplete="off">
+        <input class="test-input" id="test-title" type="text" placeholder="Title">
+        <textarea class="test-textarea" id="test-body" rows="2" placeholder="Body"></textarea>
+        <button class="btn-sm btn-sm-muted" id="btn-test-send">Send</button>
+        <div id="test-feedback" style="display:none;font-size:13px;margin-top:4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejected -->
+  <div data-state="rejected">
+    <div class="heading">
+      <h1>Personal Push</h1>
+      <p>This device is subscribed.</p>
+    </div>
+    <div class="device-card">
+      <div class="device-card-header">
+        <span class="device-name" id="rejected-label"></span>
+        <span class="badge badge-rejected">Rejected</span>
+      </div>
+      <div class="device-desc">This device was not approved.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-primary" id="btn-try-again">Try again</button>
+      <button class="btn btn-secondary" id="btn-unsubscribe-rejected">Unsubscribe</button>
+    </div>
+  </div>
+
+</main>
+<script>
+(function () {
+  'use strict';
+
+  let vapidPublicKey = null;
+  let currentSub = null;
+  let pollTimer = null;
+
+  function setState(s) {
+    document.body.setAttribute('data-state', s);
+  }
+
+  function setLabel(label) {
+    ['pending-label', 'approved-label', 'rejected-label'].forEach(id => {
+      document.getElementById(id).textContent = label;
+    });
+  }
+
+  function getSavedLabel() {
+    return localStorage.getItem('deviceLabel') || 'My iPhone';
+  }
+
+  function saveLabel(label) {
+    localStorage.setItem('deviceLabel', label);
+  }
+
+  function urlBase64ToUint8Array(b64) {
+    const pad = '='.repeat((4 - b64.length % 4) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(Array.from(raw).map(c => c.charCodeAt(0)));
+  }
+
+  async function fetchConfig() {
+    const r = await fetch('/api/config');
+    if (!r.ok) throw new Error('Failed to load config');
+    return (await r.json()).vapidPublicKey;
+  }
+
+  async function fetchStatus(endpoint) {
+    const r = await fetch('/api/subscribe/status?endpoint=' + encodeURIComponent(endpoint));
+    if (!r.ok) return null;
+    return (await r.json()).status;
+  }
+
+  function startPolling(endpoint) {
+    stopPolling();
+    pollTimer = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+      const status = await fetchStatus(endpoint).catch(() => null);
+      if (status && status !== 'pending') {
+        setState(status);
+        stopPolling();
+      }
+    }, 30000);
+    document.addEventListener('visibilitychange', onVisible);
+  }
+
+  async function onVisible() {
+    if (document.visibilityState !== 'visible' || !currentSub) return;
+    const status = await fetchStatus(currentSub.endpoint).catch(() => null);
+    if (status) {
+      setState(status);
+      if (status !== 'pending') stopPolling();
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    document.removeEventListener('visibilitychange', onVisible);
+  }
+
+  async function doSubscribe(label) {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    });
+    const j = sub.toJSON();
+    const r = await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys, label }),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.error || 'Subscribe failed');
+    }
+    return sub;
+  }
+
+  async function doUnsubscribe() {
+    if (!currentSub) return;
+    await fetch('/api/subscribe', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: currentSub.endpoint }),
+    }).catch(() => {});
+    await currentSub.unsubscribe().catch(() => {});
+    currentSub = null;
+    stopPolling();
+    localStorage.removeItem('deviceLabel');
+    setState('unsubscribed');
+    document.getElementById('device-label').value = 'My iPhone';
+  }
+
+  // Enable Notifications
+  document.getElementById('btn-enable').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-enable');
+    const errEl = document.getElementById('enable-error');
+    const label = document.getElementById('device-label').value.trim() || 'My iPhone';
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Enabling…';
+    try {
+      if (!('Notification' in window)) throw new Error('Notifications not supported in this browser.');
+      if (!('serviceWorker' in navigator)) throw new Error('Service workers not supported.');
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Permission was denied.');
+      currentSub = await doSubscribe(label);
+      saveLabel(label);
+      setLabel(label);
+      const status = await fetchStatus(currentSub.endpoint);
+      setState(status || 'pending');
+      if (status === 'pending' || !status) startPolling(currentSub.endpoint);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enable Notifications';
+    }
+  });
+
+  document.getElementById('btn-unsubscribe-pending').addEventListener('click', doUnsubscribe);
+  document.getElementById('btn-unsubscribe-approved').addEventListener('click', doUnsubscribe);
+  document.getElementById('btn-unsubscribe-rejected').addEventListener('click', doUnsubscribe);
+
+  // Try again (rejected state)
+  document.getElementById('btn-try-again').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-try-again');
+    btn.disabled = true;
+    btn.textContent = 'Trying…';
+    try {
+      const label = getSavedLabel();
+      currentSub = await doSubscribe(label);
+      setLabel(label);
+      const status = await fetchStatus(currentSub.endpoint);
+      setState(status || 'pending');
+      if (status === 'pending' || !status) startPolling(currentSub.endpoint);
+    } catch {
+      // stay on rejected
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+    }
+  });
+
+  // Test notification toggle
+  document.getElementById('test-toggle').addEventListener('click', () => {
+    const fields = document.getElementById('test-fields');
+    const arrow = document.getElementById('test-arrow');
+    const open = fields.classList.toggle('open');
+    arrow.classList.toggle('open', open);
+  });
+
+  document.getElementById('btn-test-send').addEventListener('click', async () => {
+    const apiKey = document.getElementById('test-api-key').value.trim();
+    const title = document.getElementById('test-title').value.trim();
+    const body = document.getElementById('test-body').value.trim();
+    const fb = document.getElementById('test-feedback');
+    fb.style.display = 'none';
+
+    if (!apiKey || !title) {
+      fb.textContent = 'API key and title are required.';
+      fb.style.color = '#ef4444';
+      fb.style.display = 'block';
+      return;
+    }
+    try {
+      const r = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ title, body, target: 'all' }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || 'HTTP ' + r.status);
+      }
+      fb.textContent = 'Sent!';
+      fb.style.color = '#16a34a';
+      fb.style.display = 'block';
+      setTimeout(() => { fb.style.display = 'none'; }, 3000);
+    } catch (err) {
+      fb.textContent = err.message;
+      fb.style.color = '#ef4444';
+      fb.style.display = 'block';
+    }
+  });
+
+  // Init
+  async function init() {
+    try {
+      vapidPublicKey = await fetchConfig();
+
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setState('unsubscribed');
+        const errEl = document.getElementById('enable-error');
+        errEl.textContent = 'Push is only available in the installed app. Open in Safari → Share → Add to Home Screen, then reopen from the Home Screen icon.';
+        errEl.style.display = 'block';
+        document.getElementById('btn-enable').disabled = true;
+        return;
+      }
+
+      await navigator.serviceWorker.register('/sw.js');
+      const reg = await navigator.serviceWorker.ready;
+      currentSub = await reg.pushManager.getSubscription();
+
+      if (!currentSub) {
+        setState('unsubscribed');
+        document.getElementById('device-label').value = getSavedLabel();
+        return;
+      }
+
+      const label = getSavedLabel();
+      setLabel(label);
+      const status = await fetchStatus(currentSub.endpoint);
+      setState(status || 'pending');
+      if (status === 'pending' || !status) startPolling(currentSub.endpoint);
+    } catch (err) {
+      console.error('Init error:', err);
+      setState('unsubscribed');
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

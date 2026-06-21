@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin · Personal Push</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100vh; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #f4f4f5;
+      color: #09090b;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input { font-family: inherit; }
+
+    /* Login gate */
+    #login-gate {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .login-card {
+      width: 100%; max-width: 380px;
+      border: 1px solid #e4e4e7; border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+      padding: 24px; background: #fff;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    .login-heading { display: flex; flex-direction: column; gap: 6px; }
+    .login-heading h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: #09090b; margin: 0; }
+    .login-heading p { font-size: 14px; line-height: 1.5; color: #71717a; margin: 0; }
+
+    .input-base {
+      height: 40px; width: 100%;
+      border: 1px solid #e4e4e7; border-radius: 6px;
+      padding: 0 12px; font-size: 15px;
+      background: #fff; color: #18181b; outline: none;
+    }
+    .input-base:focus { border-color: #18181b; }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 100%; height: 40px; padding: 0 16px;
+      border-radius: 6px; border: 1px solid #18181b;
+      background: #18181b; color: #fafafa;
+      font-size: 15px; font-weight: 500; cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error-msg { font-size: 13px; color: #ef4444; }
+
+    /* Main content */
+    #main { display: none; padding: 32px; max-width: 720px; margin: 0 auto; }
+
+    .main-header {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    .main-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: #09090b; margin: 0; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .total-count { font-size: 14px; color: #a1a1aa; }
+    .refresh-btn {
+      background: none; border: none; padding: 0;
+      font-size: 13px; color: #71717a; cursor: pointer; text-decoration: underline;
+    }
+
+    .group { margin-bottom: 28px; }
+    .group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .group-header span { font-size: 14px; font-weight: 600; color: #18181b; }
+    .count-badge {
+      display: inline-flex; align-items: center;
+      border-radius: 6px; border: 1px solid #e4e4e7;
+      color: #71717a; padding: 1px 8px; font-size: 12px; font-weight: 600;
+    }
+
+    .empty-state {
+      border: 1px dashed #e4e4e7; border-radius: 10px;
+      padding: 28px; text-align: center;
+      font-size: 14px; color: #a1a1aa;
+    }
+
+    .device-row {
+      border: 1px solid #e4e4e7; border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      background: #fff; margin-bottom: 10px;
+    }
+    .device-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .device-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .device-name { font-size: 15px; font-weight: 500; color: #18181b; }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      border-radius: 6px; border: 1px solid transparent;
+      padding: 1px 8px; font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-pending { background: #f4f4f5; color: #3f3f46; }
+    .badge-approved { background: #18181b; color: #fafafa; }
+    .badge-rejected { background: #ef4444; color: #fff; }
+
+    .device-meta { font-size: 12px; color: #a1a1aa; }
+    .device-actions { display: flex; gap: 8px; flex: none; flex-wrap: wrap; }
+
+    .btn-sm {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 32px; padding: 0 12px;
+      border-radius: 6px; font-size: 13px; font-weight: 500;
+      cursor: pointer; white-space: nowrap;
+    }
+    .btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm-dark { border: 1px solid #18181b; background: #18181b; color: #fafafa; }
+    .btn-sm-outline { border: 1px solid #e4e4e7; background: #fff; color: #18181b; }
+    .btn-sm-danger { border: 1px solid transparent; background: transparent; color: #ef4444; }
+
+    /* Delete confirmation modal */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4);
+      align-items: center; justify-content: center;
+      padding: 24px; z-index: 100;
+    }
+    #modal-overlay.open { display: flex; }
+    .modal {
+      width: 100%; max-width: 360px;
+      background: #fff; border: 1px solid #e4e4e7; border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+      padding: 24px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .modal h2 { font-size: 17px; font-weight: 600; color: #09090b; margin: 0; }
+    .modal p { font-size: 14px; line-height: 1.5; color: #71717a; margin: 0; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .btn-cancel {
+      border: 1px solid #e4e4e7; background: #fff; color: #18181b;
+      height: 36px; padding: 0 16px; border-radius: 6px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+    }
+    .btn-delete-confirm {
+      border: 1px solid #ef4444; background: #ef4444; color: #fff;
+      height: 36px; padding: 0 16px; border-radius: 6px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login gate -->
+<div id="login-gate">
+  <div class="login-card">
+    <div class="login-heading">
+      <h1>Admin</h1>
+      <p>Enter your API key to continue.</p>
+    </div>
+    <input type="password" id="api-key-input" class="input-base" placeholder="API key" autocomplete="off">
+    <div class="error-msg" id="login-error" style="display:none;"></div>
+    <button class="btn-primary" id="btn-continue">Continue</button>
+  </div>
+</div>
+
+<!-- Main content -->
+<div id="main">
+  <div class="main-header">
+    <h1>Devices</h1>
+    <div class="header-right">
+      <span class="total-count" id="total-count"></span>
+      <button class="refresh-btn" id="btn-refresh">Refresh</button>
+    </div>
+  </div>
+  <div id="device-list"></div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div id="modal-overlay">
+  <div class="modal">
+    <h2>Delete this device?</h2>
+    <p id="modal-desc"></p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-modal-cancel">Cancel</button>
+      <button class="btn-delete-confirm" id="btn-modal-delete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  let apiKey = sessionStorage.getItem('adminKey') || '';
+  let devices = [];
+  let pendingDeleteId = null;
+
+  const loginGate = document.getElementById('login-gate');
+  const main = document.getElementById('main');
+  const loginError = document.getElementById('login-error');
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function relTime(iso) {
+    if (!iso) return '—';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60000) return 'just now';
+    if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago';
+    if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago';
+    return Math.floor(ms / 86400000) + 'd ago';
+  }
+
+  async function loadDevices(key) {
+    try {
+      const r = await fetch('/api/admin/devices', {
+        headers: { 'Authorization': 'Bearer ' + key },
+      });
+      if (!r.ok) return false;
+      devices = await r.json();
+      renderDevices();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function showMain() {
+    loginGate.style.display = 'none';
+    main.style.display = 'block';
+  }
+
+  document.getElementById('btn-continue').addEventListener('click', async () => {
+    const key = document.getElementById('api-key-input').value.trim();
+    if (!key) {
+      loginError.textContent = 'API key is required.';
+      loginError.style.display = 'block';
+      return;
+    }
+    loginError.style.display = 'none';
+    const btn = document.getElementById('btn-continue');
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    const ok = await loadDevices(key);
+    btn.disabled = false;
+    btn.textContent = 'Continue';
+    if (ok) {
+      apiKey = key;
+      sessionStorage.setItem('adminKey', key);
+      showMain();
+    } else {
+      loginError.textContent = 'Invalid API key or server error.';
+      loginError.style.display = 'block';
+    }
+  });
+
+  document.getElementById('api-key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-continue').click();
+  });
+
+  document.getElementById('btn-refresh').addEventListener('click', () => loadDevices(apiKey));
+
+  // Auto-login if session key exists
+  if (apiKey) {
+    loadDevices(apiKey).then(ok => {
+      if (ok) {
+        showMain();
+      } else {
+        sessionStorage.removeItem('adminKey');
+        apiKey = '';
+      }
+    });
+  }
+
+  function renderDevices() {
+    document.getElementById('total-count').textContent = devices.length + ' total';
+    const pending = devices.filter(d => d.status === 'pending');
+    const approved = devices.filter(d => d.status === 'approved');
+    const rejected = devices.filter(d => d.status === 'rejected');
+    const list = document.getElementById('device-list');
+    list.innerHTML = '';
+    list.appendChild(renderGroup('Pending', pending, ['approve', 'reject']));
+    list.appendChild(renderGroup('Approved', approved, ['reject', 'delete']));
+    list.appendChild(renderGroup('Rejected', rejected, ['delete']));
+  }
+
+  function renderGroup(title, items, actions) {
+    const wrap = document.createElement('div');
+    wrap.className = 'group';
+    wrap.innerHTML = `<div class="group-header"><span>${title}</span><span class="count-badge">${items.length}</span></div>`;
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No devices yet';
+      wrap.appendChild(empty);
+    } else {
+      items.forEach(d => wrap.appendChild(renderRow(d, actions)));
+    }
+    return wrap;
+  }
+
+  function renderRow(d, actions) {
+    const row = document.createElement('div');
+    row.className = 'device-row';
+    row.dataset.id = d.id;
+
+    const btns = actions.map(a => {
+      if (a === 'approve') return `<button class="btn-sm btn-sm-dark" data-action="approve" data-id="${esc(d.id)}">Approve</button>`;
+      if (a === 'reject')  return `<button class="btn-sm btn-sm-outline" data-action="reject" data-id="${esc(d.id)}">Reject</button>`;
+      if (a === 'delete')  return `<button class="btn-sm btn-sm-danger" data-action="delete" data-id="${esc(d.id)}" data-label="${esc(d.label)}">Delete</button>`;
+      return '';
+    }).join('');
+
+    row.innerHTML = `
+      <div class="device-info">
+        <div class="device-name-row">
+          <span class="device-name">${esc(d.label)}</span>
+          <span class="badge badge-${esc(d.status)}">${d.status.charAt(0).toUpperCase() + d.status.slice(1)}</span>
+        </div>
+        <div class="device-meta">Created ${formatDate(d.createdAt)} &nbsp;·&nbsp; Last seen ${relTime(d.lastSeenAt)}</div>
+      </div>
+      <div class="device-actions">${btns}</div>
+    `;
+    return row;
+  }
+
+  // Event delegation
+  document.getElementById('device-list').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id, label } = btn.dataset;
+
+    if (action === 'approve' || action === 'reject') {
+      btn.disabled = true;
+      try {
+        const r = await fetch(`/api/admin/devices/${id}/${action}`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + apiKey },
+        });
+        if (r.ok) await loadDevices(apiKey);
+      } finally {
+        btn.disabled = false;
+      }
+    } else if (action === 'delete') {
+      pendingDeleteId = id;
+      document.getElementById('modal-desc').textContent =
+        `This permanently removes "${label}" and its subscription. This action cannot be undone.`;
+      document.getElementById('modal-overlay').classList.add('open');
+    }
+  });
+
+  // Modal
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    pendingDeleteId = null;
+  }
+
+  document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-overlay')) closeModal();
+  });
+
+  document.getElementById('btn-modal-delete').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    closeModal();
+    try {
+      await fetch(`/api/admin/devices/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + apiKey },
+      });
+      await loadDevices(apiKey);
+    } catch {}
+  });
+})();
+</script>
+</body>
+</html>
